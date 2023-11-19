@@ -1,2 +1,2 @@
 # otg.js
-write and run JavaScript on the go with some syntactic sugar
+lets you write and run JavaScript on the go with some syntactic sugar
