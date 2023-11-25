@@ -60,6 +60,16 @@
           return context;
         }
 
+        TAG_FUNCTION_CODE = `
+          function __otgjs__tag_function(elementType) {
+            let newElement = document.createElement(elementType);
+            let content = document.createTextNode("empty content");
+            newElement.appendChild(content);
+            const maindiv = document.getElementById("___main");
+            maindiv.appendChild(newElement);
+            return newElement;
+          }`
+
         TRYCATCH = {
           TRY: 'document.getElementById("___main").innerHTML = ""; try {',
           CATCH: `} catch (e) { 
@@ -75,6 +85,7 @@
         tokens = {
           QUOT: "`",
           ENDLINE: "\n",
+          SPACE: ' ',
 
           PRINTLN: (position, context) =>
             this.simpleReplacement(
@@ -88,6 +99,12 @@
               position,
               '; document.getElementById("___main").innerHTML += "" + '
             ),
+
+          GETID:(position, context) =>
+            this.simpleReplacement(context, position, "document.getElementById"),
+
+          TAG:(position, context) =>
+            this.simpleReplacement(context, position, "__otgjs__tag_function"),  
 
           BEGIN: (position, context) =>
             this.simpleReplacement(context, position, "{"),
@@ -131,16 +148,23 @@
             this.simpleReplacement(context, position, "--"),
 
           LIT: function (position, context) {
+            
             let tokens = new otgjs().tokens;
-            let literal = tokens.QUOT;
             let localPosition = position;
             ++localPosition;
+            
+            let literalContentArray = []
             while (context[localPosition] != tokens.ENDLINE) {
-              literal += context[localPosition];
+              let word = context[localPosition];
+              if (word.trim() != '') literalContentArray.push(word);
               context.splice(localPosition, 1);
             }
-            literal += tokens.QUOT;
-            context[position] = literal;
+            let newLiteral = literalContentArray.join(tokens.SPACE);
+            // Change $x into ${x}
+            debugger
+            newLiteral = newLiteral.replace(/([^A-z0-9_\.\(\)]*)(\$)([A-z_][A-z0-9_\.\(\)]*)/ig, `$1$2{$3}`);
+            newLiteral = tokens.QUOT + newLiteral + tokens.QUOT;
+            context[position] = newLiteral;
             return context;
           },
 
@@ -231,13 +255,15 @@
 
           let __otg = new otgjs();
           let transformedCode = __otg.__transform(mainDiv, codeValue);
-          document.getElementById("__transformedCode").innerHTML =
-            transformedCode;
-          console.log("transformedCode:\n", transformedCode);
+          document.getElementById("__transformedCode").innerHTML = transformedCode;
 
           // Add try+catch to catch errors without console
           transformedCode =
+           __otg.TAG_FUNCTION_CODE +
             __otg.TRYCATCH.TRY + transformedCode + __otg.TRYCATCH.CATCH;
+
+          // The final transformed code
+          document.getElementById("__finalTransformedCode").innerHTML = transformedCode;
 
           let mainMethod = new Function("");
           try {
@@ -309,6 +335,15 @@
         id="__transformedCode"
       ></textarea>
     </details>
+
+    <details>
+      <summary>Final transformed code</summary>
+      <textarea
+        style="width: 100%; height: 100px"
+        id="__finalTransformedCode"
+      ></textarea>
+    </details>
+
     <footer style="text-align: right;">otg.js (under construction) by <a href="https://github.com/danielsedoff">https://github.com/danielsedoff</a>
     </footer>
   </body>
