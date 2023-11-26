@@ -65,6 +65,15 @@
         }
 
         TAG_FUNCTION_CODE = `
+
+          document.__otgjs__startedTime = Date.now();
+
+          function __otgjs__checkTimeoutWhile() {
+            let elapsed = Date.now() - document.__otgjs__startedTime;
+            if (elapsed > 10000) throw new Error('Timeout: 10 sec at a WHILE')
+            return true
+          }
+
           function __otgjs__tag_function(elementType) {
             let newElement = document.createElement(elementType);
             let content = document.createTextNode("empty content");
@@ -193,6 +202,7 @@
               let word = context[position].trim().toUpperCase();
               if (word === "{" || word === this.tokens.BEGIN) {
                 context.splice(position, 0, ")");
+                context.splice(position, 0, " && __otgjs__checkTimeoutWhile()");                
                 return context;
               }
             }
@@ -287,7 +297,7 @@
               "<br>";
           }
           console.log("mainMethod", mainMethod);
-          mainMethod();
+mainMethod();
         }
 
         __transform(mainDiv, codeValue) {
