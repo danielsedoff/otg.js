@@ -83,25 +83,24 @@
           return context;
         }
 
-        TAG_FUNCTION_CODE = `
-
-          document.__otgjs__startedTime = Date.now();
-
-          function __otgjs__checkTimeoutLoop() {
+        __otgjs__checkTimeoutLoop() {
             let elapsed = Date.now() - document.__otgjs__startedTime;
             if (elapsed > parseInt(document.getElementById("timeoutLoopTextbox").value)) throw new Error('Timeout was reached in a loop')
             return true
           }
 
-          function __otgjs__tag_function(elementType) {
+        __otgjs__tag_function(elementType) {
             let newElement = document.createElement(elementType);
             let content = document.createTextNode("empty content");
             newElement.appendChild(content);
             const maindiv = document.getElementById("___main");
             maindiv.appendChild(newElement);
             return newElement;
-          }
-`
+        }
+
+        MANDATORY_CODE = `document.__otgjs__startedTime = Date.now();` + 
+          'function ' + this.__otgjs__checkTimeoutLoop.toString() + 
+          'function ' + this.__otgjs__tag_function.toString();
 
         TRYCATCH = {
           TRY: `document.getElementById("___main").innerHTML = ""; try {`,
@@ -308,7 +307,7 @@
 
           // Add try+catch to catch errors without console
           transformedCode =
-           __otg.TAG_FUNCTION_CODE +
+           __otg.MANDATORY_CODE +
             __otg.TRYCATCH.TRY + transformedCode + __otg.TRYCATCH.CATCH;
 
           // The final transformed code
