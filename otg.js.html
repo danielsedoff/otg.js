@@ -1,5 +1,3 @@
-<!-- REMOVE ALL LINE OPERATIONS!!! MAKE ENDLINE A REGULAR TOKEN!!! -->
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -9,6 +7,12 @@
     <title>otgjs playground</title>
 
     <style>
+
+      .select-editable {position:relative; background-color:white; border:solid grey 1px;  width:120px; height:18px; margin-left: 10px; margin-right: 10px;}
+      .select-editable select {position:absolute; top:0px; left:0px; font-size:14px; border:none; width:120px; margin:0;}
+      .select-editable input {position:absolute; top:0px; left:0px; width:100px; padding:1px; font-size:12px; border:none;}
+      .select-editable select:focus, .select-editable input:focus {outline:none;}
+
       * {
         background-color: rgb(35, 44, 44);
         color: yellow;
@@ -24,6 +28,21 @@
       /* otg.js (under construction) by https://github.com/danielsedoff
       lets you write and run JavaScript on the go with some syntactic sugar */
       class otgjs {
+
+        processAsPriorityToken(position, context) {
+          let word = context[position];
+          let upperCaseWord = word.toUpperCase();
+          console.log("upperCaseWord", upperCaseWord);
+          if (Object.keys(this.priorityTokens).includes(upperCaseWord)) {
+            let fun = this.priorityTokens[upperCaseWord];
+            if (fun instanceof Function) {
+              context = fun(position, context);
+              console.log("context", context);
+            }
+          }
+          return context;
+        }
+
         processAsToken(position, context) {
           let word = context[position];
           let upperCaseWord = word.toUpperCase();
@@ -68,9 +87,9 @@
 
           document.__otgjs__startedTime = Date.now();
 
-          function __otgjs__checkTimeoutWhile() {
+          function __otgjs__checkTimeoutLoop() {
             let elapsed = Date.now() - document.__otgjs__startedTime;
-            if (elapsed > 10000) throw new Error('Timeout: 10 sec at a WHILE')
+            if (elapsed > parseInt(document.getElementById("timeoutLoopTextbox").value)) throw new Error('Timeout was reached in a loop')
             return true
           }
 
@@ -81,19 +100,39 @@
             const maindiv = document.getElementById("___main");
             maindiv.appendChild(newElement);
             return newElement;
-          }`
+          }
+`
 
         TRYCATCH = {
-          TRY: 'document.getElementById("___main").innerHTML = ""; try {',
+          TRY: `document.getElementById("___main").innerHTML = ""; try {`,
           CATCH: `} catch (e) { 
             document.getElementById(\"___main\").innerHTML = 
             (\"<p style='color:red; font-weight:bold;'>Exception triggered on line \" + e.lineNumber + \" column \" + e.columnNumber + 
             \"<br>stack info: \" + e.stack + \"<br>message: \" + e.message + \"<br>exception name: \" + e.name + \"<br>\"); }`,
         };
 
-        POST_REPLACEMENT = {
-          else: "__otg_special_command_ELSE__",
-        };
+        priorityTokens = {
+          LIT: function (position, context) {
+            
+            let tokens = new otgjs().tokens;
+            let localPosition = position;
+            ++localPosition;
+            
+            let literalContentArray = []
+            while (context[localPosition] != tokens.ENDLINE) {
+              let word = context[localPosition];
+              if (word.trim() != '') literalContentArray.push(word);
+              context.splice(localPosition, 1);
+            }
+            let newLiteral = literalContentArray.join(tokens.SPACE);
+            // Change $x into ${x}
+            debugger
+            newLiteral = newLiteral.replace(/([^A-z0-9_\.\(\)]*)(\$)([A-z_][A-z0-9_\.\(\)]*)/ig, `$1$2{$3}`);
+            newLiteral = tokens.QUOT + newLiteral + tokens.QUOT;
+            context[position] = newLiteral;
+            return context;
+          },
+        }
 
         tokens = {
           QUOT: "`",
@@ -160,27 +199,6 @@
           DEC: (position, context) =>
             this.simpleReplacement(context, position, "--"),
 
-          LIT: function (position, context) {
-            
-            let tokens = new otgjs().tokens;
-            let localPosition = position;
-            ++localPosition;
-            
-            let literalContentArray = []
-            while (context[localPosition] != tokens.ENDLINE) {
-              let word = context[localPosition];
-              if (word.trim() != '') literalContentArray.push(word);
-              context.splice(localPosition, 1);
-            }
-            let newLiteral = literalContentArray.join(tokens.SPACE);
-            // Change $x into ${x}
-            debugger
-            newLiteral = newLiteral.replace(/([^A-z0-9_\.\(\)]*)(\$)([A-z_][A-z0-9_\.\(\)]*)/ig, `$1$2{$3}`);
-            newLiteral = tokens.QUOT + newLiteral + tokens.QUOT;
-            context[position] = newLiteral;
-            return context;
-          },
-
           OF: function (position, context) {
             let tokens = new otgjs().tokens;
             let nextEndline = context.indexOf(tokens.ENDLINE, position);
@@ -193,6 +211,25 @@
             return newContext;
           },
 
+          FOR: (position, context) => {
+            context = this.simpleReplacement(context, position, "for");
+            ++position;
+            context.splice(position, 0, "(");
+            while (position < context.length - 1) {
+              ++position;
+              let word = context[position].trim().toUpperCase();
+              if (word === "{" || word === this.tokens.BEGIN) {
+                context.splice(position, 0, ")");
+                context.splice(position, 0, " && __otgjs__checkTimeoutLoop()");                
+                return context;
+              }
+            }
+            return context;
+          },
+
+          DO: (position, context) =>
+            this.simpleReplacement(context, position, "throw new Error('DO-WHILE is not implemented. Please use WHILE.');"),
+
           WHILE: (position, context) => {
             context = this.simpleReplacement(context, position, "while");
             ++position;
@@ -202,7 +239,7 @@
               let word = context[position].trim().toUpperCase();
               if (word === "{" || word === this.tokens.BEGIN) {
                 context.splice(position, 0, ")");
-                context.splice(position, 0, " && __otgjs__checkTimeoutWhile()");                
+                context.splice(position, 0, " && __otgjs__checkTimeoutLoop()");                
                 return context;
               }
             }
@@ -228,9 +265,7 @@
           ELSE: (position, context) => {
             context = this.simpleReplacement(context, position, "}");
             ++position;
-            context.splice(position, 0, new otgjs().POST_REPLACEMENT.else);
-            ++position;
-            context.splice(position, 0, "{");
+            context.splice(position, 0, "else");
             return context;
           },
 
@@ -297,7 +332,7 @@
               "<br>";
           }
           console.log("mainMethod", mainMethod);
-mainMethod();
+          mainMethod();
         }
 
         __transform(mainDiv, codeValue) {
@@ -314,18 +349,22 @@ mainMethod();
 
           let position = words.length - 1;
           let wordLimit = -1;
+
+          // Priority pass
           while (position > wordLimit) {
-            words = this.processAsToken(position, words);
+            words = this.processAsPriorityToken(position, words);
             console.log("words", words.join(" "));
             --position;
           }
 
-          /* Postprocessing */
-          for (let i = 0; i < words.length; ++i) {
-            for (let key of Object.keys(this.POST_REPLACEMENT)) {
-              words[i] =
-                this.POST_REPLACEMENT[key] === words[i] ? key : words[i];
-            }
+          position = words.length - 1;
+          wordLimit = -1;
+
+          // Normal pass
+          while (position > wordLimit) {
+            words = this.processAsToken(position, words);
+            console.log("words", words.join(" "));
+            --position;
           }
 
           let result = words.join(" ");
@@ -335,10 +374,11 @@ mainMethod();
         }
       }
     </script>
-    <textarea
+        <textarea
       style="width: 100%; height: 240px"
       id="___code"
       onkeyup="otgjs.__main()"
+      placeholder="your code here..."
     ></textarea>
 
     <div id="___main"></div>
@@ -357,6 +397,19 @@ mainMethod();
         id="__finalTransformedCode"
       ></textarea>
     </details>
+
+    Loop timeout, ms: 
+    <span class="select-editable">
+      
+      <select onchange="this.nextElementSibling.value=this.value">
+        <option value="10 ms">10 ms</option>
+        <option value="500 ms">500 ms</option>
+        <option value="3000 ms">3000 ms</option>
+        <option value="30000 ms">30000 ms</option>
+        <option value="10005000 ms">10005000 ms</option>
+      </select>
+      <input type="text" id="timeoutLoopTextbox" value="500 ms"/>
+    </span>
 
     <footer style="text-align: right;">otg.js (under construction) by <a href="https://github.com/danielsedoff">https://github.com/danielsedoff</a>
     </footer>
